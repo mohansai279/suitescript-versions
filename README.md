@@ -1,5 +1,8 @@
 # SuiteScript Version Tracker
 
+> **Chrome extension (main product): see [`extension/`](extension/README.md).** Runs entirely in the browser, no server or payment setup needed, publishable on the Chrome Web Store.
+> The web app below (server + Stripe) is optional and can be deployed later.
+
 Version history for SuiteScript files, per client workspace. Save versions, diff them, restore or download old ones, and see when someone changed a script directly in NetSuite.
 
 - Accounts and separate workspace per client (all data scoped by workspace)

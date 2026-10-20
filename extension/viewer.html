@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Version history - SuiteScript Version Guard</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="page">
+  <div class="card">
+    <div class="row sp">
+      <div>
+        <div style="font-size:18px;font-weight:600" id="title">Loading...</div>
+        <div class="mute small" id="meta"></div>
+        <div class="err" id="err"></div>
+      </div>
+      <div class="row">
+        <button id="check">Check now</button>
+        <button id="saveLive">Save current NetSuite version</button>
+        <button id="rename">Rename</button>
+        <button id="remove" class="danger">Stop tracking</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>History</h3>
+    <table>
+      <thead><tr><th>From</th><th>To</th><th>Version</th><th>Note</th><th>Saved</th><th>Size</th><th></th></tr></thead>
+      <tbody id="versions"></tbody>
+    </table>
+    <div class="row" style="margin-top:10px">
+      <button class="primary" id="compare">Compare selected</button>
+      <span class="mute small">Pick one "From" and one "To" version. To restore an old version, download or copy it and upload it to NetSuite.</span>
+    </div>
+  </div>
+
+  <div class="card hidden" id="diffCard">
+    <div class="row sp" style="margin-bottom:8px">
+      <h3 id="diffTitle" style="margin:0">Changes</h3>
+      <label class="row"><input type="checkbox" id="showAll"> Show whole file</label>
+    </div>
+    <div class="diff" id="diff"></div>
+  </div>
+
+  <div class="card">
+    <h3>Add a version manually</h3>
+    <p class="mute small" style="margin-top:0">Useful if NetSuite can't be read from here: paste the code or pick a .js file.</p>
+    <textarea id="content" placeholder="Paste script content here"></textarea>
+    <div class="row">
+      <input type="file" id="file" accept=".js,.txt" style="flex:1;margin:0">
+      <input id="note" placeholder="What changed? (optional)" style="flex:2;margin:0">
+      <button class="primary" id="saveManual">Save version</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="vendor/diff.js"></script>
+<script src="ui.js"></script>
+<script src="viewer.js"></script>
+</body>
+</html>

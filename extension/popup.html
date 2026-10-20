@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SuiteScript Version Guard</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="popup">
+<header class="bar">
+  <span class="title">Version Guard</span>
+  <span class="mute small" id="summary"></span>
+  <button id="checkAll" title="Check every tracked script against NetSuite now">Check all</button>
+</header>
+
+<div class="card" id="trackCard">
+  <h3>Track a script</h3>
+  <input id="acct" placeholder="NetSuite account URL, e.g. https://1234567.app.netsuite.com" autocomplete="off">
+  <div class="row">
+    <input id="fileId" placeholder="File ID (File Cabinet)" style="flex:1" autocomplete="off">
+    <input id="name" placeholder="Name (optional)" style="flex:1" autocomplete="off">
+  </div>
+  <div class="row">
+    <button class="primary" id="track">Track</button>
+    <button id="test">Test read</button>
+    <span class="mute small">Tip: open the file's page in NetSuite and this fills in.</span>
+  </div>
+</div>
+
+<div class="msg hidden" id="msg"></div>
+<div id="list"></div>
+
+<div class="pad row sp" style="border-top:1px solid var(--line)">
+  <div class="row">
+    <button id="export">Export backup</button>
+    <button id="importBtn">Import</button>
+    <input type="file" id="importFile" accept="application/json,.json" class="hidden">
+  </div>
+  <button id="settingsBtn">Settings</button>
+</div>
+
+<div class="card hidden" id="settings">
+  <h3>Settings</h3>
+  <label class="row" style="margin-bottom:6px"><input type="checkbox" id="autoCapture"> Save a new version automatically when a script changes</label>
+  <div class="row" style="margin-bottom:6px">
+    <span>Check every</span>
+    <select id="interval" style="width:auto;margin:0">
+      <option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hour</option>
+      <option value="180">3 hours</option><option value="360">6 hours</option><option value="1440">24 hours</option>
+    </select>
+  </div>
+  <label class="small mute">File URL templates (advanced, one per line; use {origin} and {id})</label>
+  <textarea id="templates" style="min-height:60px" placeholder="leave empty for defaults"></textarea>
+  <button class="primary" id="saveSettings">Save settings</button>
+</div>
+
+<script src="ui.js"></script>
+<script src="popup.js"></script>
+</body>
+</html>
