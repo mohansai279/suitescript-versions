@@ -1,0 +1,23 @@
+# Render blueprint: New > Blueprint > pick this repo.
+# SQLite lives on the persistent disk at /data (disks need a paid instance).
+services:
+  - type: web
+    name: suitescript-versions
+    runtime: docker
+    plan: starter
+    healthCheckPath: /healthz
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: APP_SECRET
+        generateValue: true
+      - key: APP_URL
+        sync: false          # set to your https URL after the first deploy
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PRICE_ID
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false

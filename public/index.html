@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SuiteScript Versions</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <span class="title" id="wsName">SuiteScript Versions</span>
+  <span class="mute" id="planInfo"></span>
+  <button id="subscribe" class="primary hidden">Subscribe</button>
+  <button id="manageBilling" class="hidden">Billing</button>
+  <button id="settingsBtn">Settings</button>
+  <button id="logout">Sign out</button>
+</header>
+
+<main>
+  <aside class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:10px">
+      <h3 style="margin:0">Scripts</h3>
+      <button id="checkAll" title="Compare every script that has a NetSuite file ID with NetSuite">Check all</button>
+    </div>
+    <div id="scripts"></div>
+  </aside>
+
+  <section class="stack">
+    <div class="banner hidden" id="planBanner"></div>
+
+    <div class="card hidden" id="newKeyCard">
+      <h3>Your API key (shown once)</h3>
+      <p class="mute" style="margin-top:0">Use it to push versions from scripts or CI. Copy it now, it cannot be shown again.</p>
+      <code id="newKey"></code>
+    </div>
+
+    <div class="card hidden" id="settingsCard">
+      <h3>NetSuite connection</h3>
+      <p class="mute" style="margin-top:0">Deploy <code>restlet/ns_file_reader.js</code> in NetSuite, create an integration + access token for a role that can read the File Cabinet, then enter the details here. Secrets are stored encrypted and never shown again.</p>
+      <div class="row">
+        <div style="flex:1;min-width:180px"><label class="lbl">Account ID</label><input id="nsAccount" placeholder="1234567 or 1234567_SB1"></div>
+        <div style="flex:3;min-width:260px"><label class="lbl">RESTlet external URL</label><input id="nsUrl" placeholder="https://1234567.restlets.api.netsuite.com/app/site/hosting/restlet.nl?script=123&deploy=1"></div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div style="flex:1;min-width:180px"><label class="lbl">Consumer key</label><input id="nsCk" autocomplete="off"></div>
+        <div style="flex:1;min-width:180px"><label class="lbl">Consumer secret</label><input id="nsCs" type="password" autocomplete="off"></div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div style="flex:1;min-width:180px"><label class="lbl">Token ID</label><input id="nsTi" autocomplete="off"></div>
+        <div style="flex:1;min-width:180px"><label class="lbl">Token secret</label><input id="nsTs" type="password" autocomplete="off"></div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="primary" id="nsSave">Save connection</button>
+        <button id="nsRemove" class="hidden">Disconnect</button>
+        <button id="rotateKey">Rotate API key</button>
+        <span class="mute" id="nsState"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Save a version</h3>
+      <div class="row">
+        <input id="name" placeholder="Script name (e.g. SSCC_UE_SalesOrder.js)" style="flex:2">
+        <input id="nsid" placeholder="NetSuite file ID (optional)" style="flex:1">
+      </div>
+      <textarea id="content" placeholder="Paste script content here, or choose a .js file below" style="margin-top:8px"></textarea>
+      <div class="row"><input type="file" id="file" accept=".js,.txt" style="flex:1"></div>
+      <div class="row" style="margin-top:8px">
+        <input id="note" placeholder="What changed? (optional)" style="flex:2">
+        <button class="primary" id="save">Save version</button>
+      </div>
+    </div>
+
+    <div class="card hidden" id="driftCard">
+      <h3>NetSuite check</h3>
+      <div class="row">
+        <button id="checkOne">Check against NetSuite</button>
+        <button id="importLive" class="hidden">Save NetSuite version as new</button>
+        <span id="driftMsg" class="mute"></span>
+      </div>
+      <div class="diff hidden" id="driftDiff" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card hidden" id="historyCard">
+      <h3 id="historyTitle">History</h3>
+      <table>
+        <thead><tr><th>From</th><th>To</th><th>Version</th><th>Note</th><th>Author</th><th>Saved</th><th></th></tr></thead>
+        <tbody id="versions"></tbody>
+      </table>
+      <div class="row" style="margin-top:10px">
+        <button id="compare" class="primary">Compare selected</button>
+        <span class="mute">Pick one "From" and one "To" version.</span>
+      </div>
+    </div>
+
+    <div class="card hidden" id="diffCard">
+      <h3 id="diffTitle">Changes</h3>
+      <div class="row" style="margin-bottom:8px">
+        <label><input type="checkbox" id="onlyChanges" style="width:auto;margin:0"> Show only changed lines</label>
+      </div>
+      <div class="diff" id="diff"></div>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast"></div>
+<script src="/app.js"></script>
+</body>
+</html>

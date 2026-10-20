@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SuiteScript Versions - Sign in</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="auth">
+  <div class="card">
+    <h3 id="heading">Sign in</h3>
+    <input id="workspace" placeholder="Company / workspace name" class="hidden" autocomplete="organization">
+    <input id="email" type="email" placeholder="Email" autocomplete="email">
+    <input id="password" type="password" placeholder="Password (8+ characters)" autocomplete="current-password">
+    <div class="err" id="err"></div>
+    <div class="row">
+      <button class="primary" id="go">Sign in</button>
+      <button id="toggle">Create account</button>
+    </div>
+    <p class="mute" id="hint" style="margin-bottom:0"></p>
+  </div>
+</div>
+<script src="/login.js"></script>
+</body>
+</html>
