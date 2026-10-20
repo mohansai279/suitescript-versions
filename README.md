@@ -52,7 +52,7 @@ The RESTlet is read-only and only returns JavaScript files.
 ```bash
 curl -X POST https://YOUR-URL/api/ingest \
   -H "X-Api-Key: sstk_..." -H "Content-Type: application/json" \
-  -d '{"name":"SSCC_UE_SalesOrder.js","content":"...","note":"deployed by CI"}'
+  -d '{"name":"SAMPLE_UE_SalesOrder.js","content":"...","note":"deployed by CI"}'
 ```
 
 The key is shown once at signup (Settings > Rotate API key creates a new one).

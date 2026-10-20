@@ -126,12 +126,12 @@ function stripeHandler(req, res) {
   });
 
   await t('versions: save, dedupe (incl. CRLF), new version on change', async () => {
-    let r = await A('POST', '/api/scripts', { name: 'SSCC_UE.js', content: 'line1\nline2\n', note: 'first' });
+    let r = await A('POST', '/api/scripts', { name: 'SAMPLE_UE.js', content: 'line1\nline2\n', note: 'first' });
     assert.ok(r.json.created); assert.strictEqual(r.json.version.version_no, 1);
     scriptA = r.json.script.id; v1 = r.json.version.id;
-    r = await A('POST', '/api/scripts', { name: 'SSCC_UE.js', content: 'line1\r\nline2\r\n' });
+    r = await A('POST', '/api/scripts', { name: 'SAMPLE_UE.js', content: 'line1\r\nline2\r\n' });
     assert.strictEqual(r.json.created, false, 'CRLF-only difference must not create a version');
-    r = await A('POST', '/api/scripts', { name: 'SSCC_UE.js', content: 'line1\nline2 changed\nline3\n' });
+    r = await A('POST', '/api/scripts', { name: 'SAMPLE_UE.js', content: 'line1\nline2 changed\nline3\n' });
     assert.ok(r.json.created); assert.strictEqual(r.json.version.version_no, 2); v2 = r.json.version.id;
     const d = await A('GET', `/api/diff?from=${v1}&to=${v2}`);
     assert.strictEqual(d.json.added, 2); assert.strictEqual(d.json.removed, 1);
@@ -157,7 +157,7 @@ function stripeHandler(req, res) {
     assert.strictEqual((await B('POST', `/api/versions/${v1}/restore`, {})).status, 404);
     assert.strictEqual((await B('PUT', `/api/scripts/${scriptA}`, { nsFileId: '1' })).status, 404);
     assert.strictEqual((await B('POST', `/api/scripts/${scriptA}/check`, {})).status, 404);
-    const same = await B('POST', '/api/scripts', { name: 'SSCC_UE.js', content: 'B own content\n' });
+    const same = await B('POST', '/api/scripts', { name: 'SAMPLE_UE.js', content: 'B own content\n' });
     assert.strictEqual(same.json.version.version_no, 1, 'same script name in another workspace is independent');
   });
 

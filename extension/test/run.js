@@ -24,7 +24,7 @@ function nsHandler(req, res) {
   // This mock NetSuite only serves files through downloadfile.nl (like the real one, plain media.nl without a hash gives an error page)
   if (u.pathname === '/core/media/media.nl' && ns.mediaIsBroken) { res.writeHead(500); return res.end('Error'); }
   if (!['/core/media/media.nl', '/core/media/downloadfile.nl', '/custom/dl.nl'].includes(u.pathname) || !(id in ns.files)) { res.writeHead(404); return res.end('nope'); }
-  res.writeHead(200, { 'Content-Type': 'application/javascript', 'Content-Disposition': `attachment; filename="${ns.names && ns.names[id] || 'SSCC_UE_' + id + '.js'}"` });
+  res.writeHead(200, { 'Content-Type': 'application/javascript', 'Content-Disposition': `attachment; filename="${ns.names && ns.names[id] || 'SAMPLE_UE_' + id + '.js'}"` });
   res.end(ns.files[id]);
 }
 
@@ -103,7 +103,7 @@ const rejects = async (p, re) => { try { await p; } catch (e) { assert.ok(re.tes
   await t('track reads the file with the user session and saves v1 (name from NetSuite)', async () => {
     const r = await call('track', { origin: ORIGIN, fileId: '555' });
     assert.strictEqual(r.already, false);
-    assert.strictEqual(r.script.name, 'SSCC_UE_555.js');
+    assert.strictEqual(r.script.name, 'SAMPLE_UE_555.js');
     assert.strictEqual(r.script.latestNo, 1);
     const again = await call('track', { origin: ORIGIN, fileId: '555' });
     assert.strictEqual(again.already, true);
@@ -277,8 +277,8 @@ const rejects = async (p, re) => { try { await p; } catch (e) { assert.ok(re.tes
     assert.strictEqual(d.getElementById('fileId').value, '888');
     d.getElementById('track').click();
     await wait(300);
-    assert.ok(/Tracking SSCC_UE_888\.js/.test(d.getElementById('msg').textContent), d.getElementById('msg').textContent);
-    assert.ok([...d.querySelectorAll('#list .name')].some((a) => a.textContent.includes('SSCC_UE_888.js')));
+    assert.ok(/Tracking SAMPLE_UE_888\.js/.test(d.getElementById('msg').textContent), d.getElementById('msg').textContent);
+    assert.ok([...d.querySelectorAll('#list .name')].some((a) => a.textContent.includes('SAMPLE_UE_888.js')));
     dom.window.close();
   });
 
@@ -327,7 +327,7 @@ const rejects = async (p, re) => { try { await p; } catch (e) { assert.ok(re.tes
 
   // ---------- in-page UI on NetSuite pages (content.js + bridge.js, jsdom) ----------
   console.log('NetSuite page UI (version bar, save capture, script page)');
-  const ORIGIN2 = 'https://12375325.app.netsuite.com';
+  const ORIGIN2 = 'https://7654321.app.netsuite.com';
   async function openNsPage(pathAndQuery, bodyHtml, setup) {
     const dom = new JSDOM(`<!doctype html><html><head></head><body>${bodyHtml}</body></html>`, { url: ORIGIN2 + pathAndQuery, runScripts: 'dangerously', pretendToBeVisual: true });
     const win = dom.window;
@@ -355,7 +355,7 @@ const rejects = async (p, re) => { try { await p; } catch (e) { assert.ok(re.tes
   const key2 = `${ORIGIN2}|4726`;
 
   await t('file page: Version dropdown lists every version, shows what changed, marks the current one', async () => {
-    ns.files['4726'] = 'function a() {}\n'; ns.names = { 4726: 'kjts_pr_print_ue.js' };
+    ns.files['4726'] = 'function a() {}\n'; ns.names = { 4726: 'sample_print_ue.js' };
     await call('track', { origin: ORIGIN2, fileId: '4726' });
     await call('saveVersion', { key: key2, content: 'function a() {}\nfunction b() {}\n', note: 'added b' });
     await call('saveVersion', { key: key2, content: 'function a() { return 1; }\nfunction b() {}\n', note: 'changed a' });
@@ -425,7 +425,7 @@ const rejects = async (p, re) => { try { await p; } catch (e) { assert.ok(re.tes
 
   await t('script record page: finds the script file links and tracks with one click', async () => {
     ns.files['4800'] = 'library\n';
-    const html = `<a href="/app/common/media/mediaitem.nl?id=4726&e=T">kjts_pr_print_ue.js</a>
+    const html = `<a href="/app/common/media/mediaitem.nl?id=4726&e=T">sample_print_ue.js</a>
       <a href="/core/media/downloadfile.nl?id=4800">download</a><a href="/app/other.nl?id=5">other</a>`;
     const dom = await openNsPage('/app/common/scripting/script.nl?id=77', html);
     const r = shadow(dom);
@@ -507,7 +507,7 @@ const rejects = async (p, re) => { try { await p; } catch (e) { assert.ok(re.tes
   });
 
   await t('script page: the "download" link teaches the extension how this account serves files', async () => {
-    const html = '<a href="/app/common/media/mediaitem.nl?id=4726&e=T">kjts_pr_print_ue.js</a> <a href="/core/media/downloadfile.nl?id=4726&_xd=T&e=T">download</a>';
+    const html = '<a href="/app/common/media/mediaitem.nl?id=4726&e=T">sample_print_ue.js</a> <a href="/core/media/downloadfile.nl?id=4726&_xd=T&e=T">download</a>';
     const dom = await openNsPage('/app/common/scripting/script.nl?id=77', html);
     await wait(300);
     assert.strictEqual(JSON.stringify((await call('getSettings')).learned), JSON.stringify(['{origin}/core/media/downloadfile.nl?id={id}&_xd=T&e=T']));
