@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SuiteScript Version Guard",
-  "version": "1.0.0",
-  "description": "Track versions of SuiteScript files in NetSuite, see exactly what changed, and get alerted when a script is edited.",
+  "version": "1.1.0",
+  "description": "Version history for SuiteScript files in NetSuite: a Version dropdown on the file page, a diff of every change, and alerts when a script is edited.",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -21,9 +21,17 @@
   "content_scripts": [
     {
       "matches": ["https://*.app.netsuite.com/*"],
-      "js": ["content.js"],
+      "js": ["vendor/diff.js", "ui.js", "content.js"],
+      "all_frames": true,
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://*.app.netsuite.com/*"],
+      "js": ["bridge.js"],
+      "world": "MAIN",
+      "all_frames": true,
       "run_at": "document_idle"
     }
   ],
-  "minimum_chrome_version": "110"
+  "minimum_chrome_version": "111"
 }

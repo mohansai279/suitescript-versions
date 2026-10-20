@@ -182,7 +182,8 @@ const handlers = {
     else if (!text.length || text.length > 5 * 1024 * 1024) throw new Error('Content must be between 1 character and 5 MB');
     return locked(async () => {
       const cur = await DB.getScript(key);
-      const r = await addVersion(cur, text, (note || '').slice(0, 500) || (src === 'live' ? 'Saved from NetSuite' : 'Added manually'), source || src);
+      const label = { live: 'Saved from NetSuite', save: 'Saved in NetSuite', snapshot: 'Snapshot from the editor' }[source || src] || 'Added manually';
+      const r = await addVersion(cur, text, (note || '').slice(0, 500) || label, source || src);
       if (r.created) { r.script.status = 'ok'; r.script.liveHash = null; r.script.error = null; await DB.putScript(r.script); }
       await updateBadge();
       return { created: r.created, version: r.version || null };

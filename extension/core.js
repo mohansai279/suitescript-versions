@@ -59,7 +59,8 @@ async function tabFetch(origin, url) {
   let last = new Error('No open NetSuite tab for this account');
   for (const tab of tabs) {
     try {
-      const resp = await chrome.tabs.sendMessage(tab.id, { type: 'fetchFile', url });
+      // frameId 0 = the top frame, which is always on the account origin (other frames could answer first with an error)
+      const resp = await chrome.tabs.sendMessage(tab.id, { type: 'fetchFile', url }, { frameId: 0 });
       if (!resp) throw new Error('No response from tab');
       return acceptResponse(resp);
     } catch (e) { last = e; }

@@ -18,7 +18,10 @@ SuiteScript Version Guard gives your NetSuite scripts the version history NetSui
 Track any JavaScript file from the NetSuite File Cabinet. The extension saves it, checks it in the background, and keeps every version. If someone edits a script directly in NetSuite, you see it: the toolbar icon shows a badge and the new version is saved automatically.
 
 What you can do
-- Track a script from its File Cabinet page with one click, or by file ID
+- A "Version" dropdown right on the NetSuite file page, like the one on Advanced PDF/HTML templates: pick any saved version and see exactly what changed
+- Restore an old version into the code editor with one click (you still press Save in NetSuite)
+- A version is captured automatically every time you click Save on a script file
+- Track a script from its Script record or File Cabinet page with one click, or by file ID
 - Automatic checks (every 15 minutes to 24 hours) for edits made in NetSuite
 - A new version is saved automatically when a script changes
 - Side-by-side history with a clear line-by-line diff (what was added and removed)

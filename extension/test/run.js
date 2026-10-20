@@ -50,7 +50,7 @@ function buildWorker(nsPort) {
   };
   // Real code talks to https://*.app.netsuite.com; route that to the mock server.
   const realFetch = fetch;
-  const fakeFetch = (url, opts) => realFetch(String(url).replace(ORIGIN, `http://127.0.0.1:${nsPort}`), opts);
+  const fakeFetch = (url, opts) => realFetch(String(url).replace(/^https:\/\/[a-z0-9-]+\.app\.netsuite\.com/, `http://127.0.0.1:${nsPort}`), opts);
 
   const sandbox = {
     indexedDB, chrome, crypto: webcrypto, TextEncoder, URL, console, setTimeout, clearTimeout,
@@ -320,6 +320,128 @@ const rejects = async (p, re) => { try { await p; } catch (e) { assert.ok(re.tes
     const dom = await openPage('viewer.html', '?key=' + encodeURIComponent(k));
     await wait(200);
     assert.strictEqual((await call('get', { key: k })).script.status, 'ok');
+    dom.window.close();
+  });
+
+  // ---------- in-page UI on NetSuite pages (content.js + bridge.js, jsdom) ----------
+  console.log('NetSuite page UI (version bar, save capture, script page)');
+  const ORIGIN2 = 'https://12375325.app.netsuite.com';
+  async function openNsPage(pathAndQuery, bodyHtml, setup) {
+    const dom = new JSDOM(`<!doctype html><html><head></head><body>${bodyHtml}</body></html>`, { url: ORIGIN2 + pathAndQuery, runScripts: 'dangerously', pretendToBeVisual: true });
+    const win = dom.window;
+    win.chrome = {
+      runtime: { lastError: null, sendMessage: (msg, cb) => W.listeners.message(msg, {}, (r) => setTimeout(() => cb(r), 0)), onMessage: { addListener() {} }, getURL: (p) => 'chrome-extension://test/' + p },
+    };
+    win.confirm = () => true;
+    if (setup) setup(win);
+    // Scripts are injected as <script> elements so top-level const/function are shared, like real content scripts
+    for (const f of ['vendor/diff.js', 'ui.js', 'content.js', 'bridge.js']) {
+      const s = win.document.createElement('script');
+      s.textContent = fs.readFileSync(path.join(EXT, f), 'utf8');
+      win.document.head.append(s);
+    }
+    await wait(400);
+    return dom;
+  }
+  const shadow = (dom) => dom.window.document.querySelector('[data-ssvg]').shadowRoot;
+  const btnByText = (root, text) => [...root.querySelectorAll('button')].find((b) => b.textContent.trim() === text);
+  const fakeEditor = (initial) => (win) => {
+    const el = win.document.getElementById('cm');
+    el.CodeMirror = { _v: initial, getValue() { return this._v; }, setValue(v) { this._v = v; } };
+  };
+  const EDIT_URL = '/app/common/record/edittextmediaitem.nl?id=4726&e=T&l=T&target=file';
+  const key2 = `${ORIGIN2}|4726`;
+
+  await t('file page: Version dropdown lists every version, shows what changed, marks the current one', async () => {
+    ns.files['4726'] = 'function a() {}\n'; ns.names = { 4726: 'kjts_pr_print_ue.js' };
+    await call('track', { origin: ORIGIN2, fileId: '4726' });
+    await call('saveVersion', { key: key2, content: 'function a() {}\nfunction b() {}\n', note: 'added b' });
+    await call('saveVersion', { key: key2, content: 'function a() { return 1; }\nfunction b() {}\n', note: 'changed a' });
+    const dom = await openNsPage(EDIT_URL, '<div class="CodeMirror" id="cm"></div>', fakeEditor('cur'));
+    const r = shadow(dom);
+    const opts = [...r.querySelectorAll('select option')].map((o) => o.textContent);
+    assert.strictEqual(opts.length, 3, opts.join('|'));
+    assert.ok(opts[0].startsWith('3 (Current)'), opts[0]);
+    assert.ok(/What changed in v3 \(compared with v2\)/.test(r.querySelector('.pt').textContent), r.querySelector('.pt').textContent);
+    assert.strictEqual(r.querySelectorAll('.diff .line.add').length, 1);
+    assert.strictEqual(r.querySelectorAll('.diff .line.del').length, 1);
+    // picking an older version previews what restoring would change
+    const sel = r.querySelector('select');
+    sel.selectedIndex = 2; sel.dispatchEvent(new dom.window.Event('change'));
+    await wait(200);
+    assert.ok(/If you restore v1/.test(r.querySelector('.pt').textContent), r.querySelector('.pt').textContent);
+    dom.window.close();
+  });
+
+  await t('file page: Restore to editor writes the chosen version into the code editor', async () => {
+    const dom = await openNsPage(EDIT_URL, '<div class="CodeMirror" id="cm"></div>', fakeEditor('whatever is there now'));
+    const r = shadow(dom);
+    const sel = r.querySelector('select');
+    sel.selectedIndex = 2; sel.dispatchEvent(new dom.window.Event('change'));
+    await wait(150);
+    btnByText(r, 'Restore to editor').click();
+    await wait(300);
+    assert.strictEqual(dom.window.document.getElementById('cm').CodeMirror._v, 'function a() {}\n');
+    assert.ok(/Loaded v1 into the editor/.test(r.querySelector('.st').textContent), r.querySelector('.st').textContent);
+    dom.window.close();
+  });
+
+  await t('file page: clicking Save captures the editor text as a new version', async () => {
+    const dom = await openNsPage(EDIT_URL, '<div class="CodeMirror" id="cm"></div><input type="submit" id="save" value="Save">', fakeEditor('function a() {}\n// edited and saved in NetSuite\n'));
+    dom.window.document.getElementById('save').addEventListener('click', (e) => e.preventDefault());
+    dom.window.document.getElementById('save').click();
+    await wait(400);
+    const g = await call('get', { key: key2 });
+    assert.strictEqual(g.versions[0].source, 'save');
+    assert.strictEqual((await call('version', { id: g.versions[0].id })).content, 'function a() {}\n// edited and saved in NetSuite\n');
+    assert.ok(/captured/.test(shadow(dom).querySelector('.st').textContent), shadow(dom).querySelector('.st').textContent);
+    dom.window.close();
+  });
+
+  await t('file page: an editor we cannot find falls back safely (no crash, clear message)', async () => {
+    const dom = await openNsPage(EDIT_URL, '<p>no editor here</p>');
+    const r = shadow(dom);
+    const sel = r.querySelector('select');
+    sel.selectedIndex = 2; sel.dispatchEvent(new dom.window.Event('change'));
+    await wait(150);
+    btnByText(r, 'Restore to editor').click();
+    await wait(400);
+    assert.ok(/Could not write to the editor|No code editor/.test(r.querySelector('.st').textContent), r.querySelector('.st').textContent);
+    dom.window.close();
+  });
+
+  await t('file page: an untracked file offers Track, and tracking fills the dropdown', async () => {
+    ns.files['9999'] = 'new file\n';
+    const dom = await openNsPage('/app/common/record/edittextmediaitem.nl?id=9999&e=T', '<div class="CodeMirror" id="cm"></div>', fakeEditor('x'));
+    const r = shadow(dom);
+    assert.strictEqual(r.querySelector('select option').textContent, 'Not tracked');
+    btnByText(r, 'Track this script').click();
+    await wait(500);
+    assert.ok(r.querySelector('select option').textContent.startsWith('1 (Current)'), r.querySelector('select option').textContent);
+    dom.window.close();
+  });
+
+  await t('script record page: finds the script file links and tracks with one click', async () => {
+    ns.files['4800'] = 'library\n';
+    const html = `<a href="/app/common/media/mediaitem.nl?id=4726&e=T">kjts_pr_print_ue.js</a>
+      <a href="/core/media/downloadfile.nl?id=4800">download</a><a href="/app/other.nl?id=5">other</a>`;
+    const dom = await openNsPage('/app/common/scripting/script.nl?id=77', html);
+    const r = shadow(dom);
+    const items = [...r.querySelectorAll('.it')].map((x) => x.textContent);
+    assert.strictEqual(items.length, 2, items.join('|'));
+    assert.ok(items[0].includes('4726') && /In sync|Changed/.test(items[0]), items[0]);
+    assert.ok(items[1].includes('4800') && items[1].includes('Not tracked yet'), items[1]);
+    btnByText(r, 'Track').click();
+    await wait(500);
+    assert.ok((await call('list')).some((s) => s.key === `${ORIGIN2}|4800`));
+    dom.window.close();
+  });
+
+  await t('popup pre-fills from an edittextmediaitem tab (the NetSuite edit window)', async () => {
+    const dom = await openPage('popup.html', '', `${ORIGIN2}${EDIT_URL}`);
+    const d = dom.window.document;
+    assert.strictEqual(d.getElementById('acct').value, ORIGIN2);
+    assert.strictEqual(d.getElementById('fileId').value, '4726');
     dom.window.close();
   });
 

@@ -51,7 +51,7 @@ async function prefill() {
       const u = new URL(tab.url);
       if (ORIGIN_RE.test(u.origin)) {
         origin = u.origin;
-        if (/\/media\/(media|mediaitem)\.nl$/.test(u.pathname) && /^\d+$/.test(u.searchParams.get('id') || '')) $('fileId').value = u.searchParams.get('id');
+        if (/\/(media|mediaitem|edittextmediaitem)\.nl$/.test(u.pathname) && /^\d+$/.test(u.searchParams.get('id') || '')) $('fileId').value = u.searchParams.get('id');
       }
     }
   } catch { /* no tab access, fine */ }
