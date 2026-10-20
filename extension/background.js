@@ -2,7 +2,7 @@
 // Tracks NetSuite script files, saves versions locally, and checks for edits on a schedule.
 importScripts('vendor/diff.js', 'db.js', 'core.js');
 
-const DEFAULTS = { autoCapture: true, intervalMin: 60, templates: null };
+const DEFAULTS = { autoCapture: true, intervalMin: 60, templates: null, learned: null };
 const keyOf = (origin, fileId) => `${origin}|${fileId}`;
 
 // ---------- settings ----------
@@ -44,9 +44,13 @@ async function addVersion(script, content, note, source) {
   return { created: true, script, version: { id, no } };
 }
 
+// URL templates to try, in order: ones learned from this account's own "download" links, then the user's own, then defaults.
+function templateList(s) {
+  return [...(s.learned || []), ...(s.templates && s.templates.length ? s.templates : DEFAULT_TEMPLATES)];
+}
+
 async function fetchLive(script) {
-  const s = await getSettings();
-  return fetchFileContent(script.origin, script.fileId, s.templates);
+  return fetchFileContent(script.origin, script.fileId, templateList(await getSettings()));
 }
 
 async function checkScript(key) {
@@ -147,18 +151,33 @@ const handlers = {
   },
 
   async testFetch({ origin, fileId }) {
-    const s = await getSettings();
-    const r = await fetchFileContent(origin, fileId, s.templates);
+    const r = await fetchFileContent(origin, fileId, templateList(await getSettings()));
     return { name: r.name, url: r.url, bytes: r.text.length, lines: r.text.split('\n').length };
   },
 
-  // Start tracking a file: reads it now and saves v1
-  async track({ origin, fileId, name, note }) {
+  // The content script found a "download" link on a NetSuite page; remember its URL shape for this browser.
+  async learnTemplate({ template }) {
+    if (!templateOk(template)) throw new Error('Not a usable URL template');
+    const s = await getSettings();
+    const learned = [template, ...(s.learned || []).filter((x) => x !== template)].slice(0, 3);
+    if (JSON.stringify(learned) !== JSON.stringify(s.learned)) await chrome.storage.local.set({ settings: { ...s, learned } });
+    return learned;
+  },
+
+  // Start tracking a file: reads it now and saves v1. If the caller already has the text
+  // (the code editor on the file page), no download is needed.
+  async track({ origin, fileId, name, note, content }) {
     validateTarget(origin, fileId);
     const key = keyOf(origin, fileId);
     const existing = await DB.getScript(key);
     if (existing) return { already: true, script: existing };
-    const live = await fetchFileContent(origin, fileId, (await getSettings()).templates);
+    let live;
+    if (typeof content === 'string' && content.trim()) {
+      if (content.length > 5 * 1024 * 1024) throw new Error('Content must be under 5 MB');
+      live = { text: content, name: null };
+    } else {
+      live = await fetchFileContent(origin, fileId, templateList(await getSettings()));
+    }
     return locked(async () => {
       if (await DB.getScript(key)) return { already: true, script: await DB.getScript(key) };
       const script = {
@@ -182,7 +201,7 @@ const handlers = {
     else if (!text.length || text.length > 5 * 1024 * 1024) throw new Error('Content must be between 1 character and 5 MB');
     return locked(async () => {
       const cur = await DB.getScript(key);
-      const label = { live: 'Saved from NetSuite', save: 'Saved in NetSuite', snapshot: 'Snapshot from the editor' }[source || src] || 'Added manually';
+      const label = { live: 'Saved from NetSuite', save: 'Saved in NetSuite', snapshot: 'Snapshot from the editor', opened: 'Seen when opened in NetSuite' }[source || src] || 'Added manually';
       const r = await addVersion(cur, text, (note || '').slice(0, 500) || label, source || src);
       if (r.created) { r.script.status = 'ok'; r.script.liveHash = null; r.script.error = null; await DB.putScript(r.script); }
       await updateBadge();

@@ -3,10 +3,15 @@ const ORIGIN_RE = /^https:\/\/[a-z0-9-]+\.app\.netsuite\.com$/i;
 
 // Tried in order until one returns the real file (not a login/HTML page).
 const DEFAULT_TEMPLATES = [
+  '{origin}/core/media/downloadfile.nl?id={id}&_xd=T',
+  '{origin}/core/media/downloadfile.nl?id={id}',
   '{origin}/core/media/media.nl?id={id}&_xd=T',
   '{origin}/core/media/media.nl?id={id}',
   '{origin}/app/media/media.nl?id={id}',
 ];
+
+// A learned/custom template must stay on the account's own origin and carry the file id.
+const templateOk = (t) => typeof t === 'string' && t.length < 400 && t.startsWith('{origin}/') && t.includes('{id}') && !/[\s"'<>]/.test(t);
 
 // Line endings are normalised before hashing so CRLF vs LF never counts as a change.
 const norm = (s) => s.replace(/\r\n/g, '\n');
@@ -35,8 +40,10 @@ function acceptResponse({ ok, status, type, disp, text, error }) {
   if (error) throw new Error(error);
   if (!ok) throw new Error(`HTTP ${status}`);
   if (!text || !text.trim()) throw new Error('Empty response');
-  if (/text\/html/i.test(type || '') && looksLikeHtml(text)) throw new Error('Got a web page (not signed in?)');
-  if (looksLikeHtml(text)) throw new Error('Got a web page (not signed in?)');
+  if (looksLikeHtml(text)) {
+    const title = (/<title[^>]*>([^<]{1,80})/i.exec(text) || [])[1];
+    throw new Error('Got a web page' + (title ? ` titled "${title.trim()}"` : '') + ' instead of the file');
+  }
   return { text, name: fileNameFromDisposition(disp) };
 }
 
@@ -83,4 +90,4 @@ async function fetchFileContent(origin, fileId, templates) {
   throw new Error(`Could not read file ${fileId}. Open NetSuite in a tab, sign in, and try again. (${uniq})`);
 }
 
-if (typeof self !== 'undefined') Object.assign(self, { norm, contentHash, fetchFileContent, validateTarget, DEFAULT_TEMPLATES, ORIGIN_RE, looksLikeHtml });
+if (typeof self !== 'undefined') Object.assign(self, { norm, contentHash, fetchFileContent, validateTarget, DEFAULT_TEMPLATES, ORIGIN_RE, looksLikeHtml, templateOk });

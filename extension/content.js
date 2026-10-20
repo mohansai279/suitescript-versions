@@ -129,7 +129,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sel.append(h('option', {}, 'Not tracked'));
         sel.disabled = true;
         buttons.append(btn('Track this script', async () => {
-          const r = await send('track', { origin: location.origin, fileId });
+          // Use the text in the code editor (works even if the file URL cannot be downloaded);
+          // when the editor is not readable, fall back to downloading the file.
+          const ed = await bridge('get');
+          const fromEditor = ed.ok && typeof ed.value === 'string' && ed.value.trim();
+          const pageName = (document.title.match(/^\s*([^\s()]+\.[A-Za-z0-9]{1,5})\b/) || [])[1];
+          const r = await send('track', {
+            origin: location.origin, fileId,
+            ...(fromEditor ? { content: ed.value, name: pageName, note: 'Started tracking (from the editor)' } : {}),
+          });
           say(`Tracking ${r.script.name} (saved v${r.script.latestNo}).`);
           await refresh();
         }));
@@ -139,7 +147,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       sel.disabled = false;
       info.versions.forEach((v, i) => {
         sel.append(h('option', { value: String(v.id) },
-          `${v.no}${i === 0 ? ' (Current)' : ''} · ${fmtDate(v.createdAt)}${v.source === 'auto' ? ' · auto' : v.source === 'save' ? ' · saved' : ''}`));
+          `${v.no}${i === 0 ? ' (Current)' : ''} · ${fmtDate(v.createdAt)}${{ auto: ' · auto', save: ' · saved', opened: ' · seen on open' }[v.source] || ''}`));
       });
       sel.onchange = () => showDiff().catch((e) => say(e.message));
       buttons.append(
@@ -151,6 +159,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       await showDiff().catch(() => {});
     }
 
+    // On the edit page the editor shows what is saved in NetSuite right now. If that differs from our
+    // latest version, someone changed the file outside our sight, so keep it (duplicates are ignored).
+    async function captureOnOpen() {
+      if (!info || !/edittextmediaitem\.nl$/.test(location.pathname)) return;
+      const ed = await bridge('get');
+      if (!ed.ok || typeof ed.value !== 'string' || !ed.value.trim()) return;
+      const r = await send('saveVersion', { key, content: ed.value, source: 'opened' });
+      if (r.created) { say(`This file differed from the last saved version. Captured v${r.version.no}.`); await refresh(); }
+    }
+
     // A Save click on this page: bridge.js sends the editor text, we store it as a new version.
     window.addEventListener('message', (e) => {
       const d = e.data;
@@ -160,11 +178,25 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         .catch(() => {});
     });
 
-    refresh();
+    refresh().then(() => setTimeout(() => captureOnOpen().catch(() => {}), 1200));
+  }
+
+  // The page's own "download" link shows how this account serves files. Remember its shape (no file-specific hash).
+  function learnFromLinks() {
+    for (const a of document.querySelectorAll('a[href]')) {
+      if (!/^\s*download\s*$/i.test(a.textContent || '')) continue;
+      let href;
+      try { href = new URL(a.getAttribute('href'), location.href); } catch { continue; }
+      if (href.origin !== location.origin || !FILE_HREF.test(href.pathname + href.search) || href.searchParams.has('h')) continue;
+      const tpl = href.href.replace(location.origin, '{origin}').replace(/([?&]id=)\d+/, '$1{id}');
+      send('learnTemplate', { template: tpl }).catch(() => {});
+      return;
+    }
   }
 
   // ---------- Script record page: offer to track the script's file(s) ----------
   function scriptPill() {
+    learnFromLinks();
     const found = new Map();
     for (const a of document.querySelectorAll('a[href]')) {
       const m = FILE_HREF.exec(a.getAttribute('href') || '');
@@ -203,7 +235,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   const path = location.pathname;
   const id = new URLSearchParams(location.search).get('id');
-  if (FILE_PAGE.test(path) && /^\d+$/.test(id || '')) fileBar(id);
+  if (FILE_PAGE.test(path) && /^\d+$/.test(id || '')) { learnFromLinks(); fileBar(id); }
   else if (SCRIPT_PAGE.test(path)) {
     // NetSuite fills parts of the page late, so look again a couple of times
     if (!scriptPill()) setTimeout(() => { if (!document.querySelector('[data-ssvg]')) scriptPill(); }, 1500);

@@ -21,7 +21,9 @@ function nsHandler(req, res) {
   const id = u.searchParams.get('id');
   if (!ns.loggedIn) { res.writeHead(200, { 'Content-Type': 'text/html' }); return res.end('<!DOCTYPE html><html><body>Login</body></html>'); }
   if (ns.failFirstTemplate && u.searchParams.get('_xd') === 'T') { res.writeHead(404); return res.end('nope'); }
-  if (u.pathname !== '/core/media/media.nl' || !(id in ns.files)) { res.writeHead(404); return res.end('nope'); }
+  // This mock NetSuite only serves files through downloadfile.nl (like the real one, plain media.nl without a hash gives an error page)
+  if (u.pathname === '/core/media/media.nl' && ns.mediaIsBroken) { res.writeHead(500); return res.end('Error'); }
+  if (!['/core/media/media.nl', '/core/media/downloadfile.nl', '/custom/dl.nl'].includes(u.pathname) || !(id in ns.files)) { res.writeHead(404); return res.end('nope'); }
   res.writeHead(200, { 'Content-Type': 'application/javascript', 'Content-Disposition': `attachment; filename="${ns.names && ns.names[id] || 'SSCC_UE_' + id + '.js'}"` });
   res.end(ns.files[id]);
 }
@@ -443,6 +445,78 @@ const rejects = async (p, re) => { try { await p; } catch (e) { assert.ok(re.tes
     assert.strictEqual(d.getElementById('acct').value, ORIGIN2);
     assert.strictEqual(d.getElementById('fileId').value, '4726');
     dom.window.close();
+  });
+
+  // ---------- the real-world failure: file URLs return an error page / HTTP 500 ----------
+  console.log('file read fallbacks (the failure seen on a real account)');
+  await t('error message names the page NetSuite returned instead of the file', async () => {
+    ns.files['321'] = 'x\n';
+    const orig = ns.files['321']; ns.loggedIn = false;
+    try { await call('track', { origin: ORIGIN2, fileId: '321' }); assert.fail('should reject'); }
+    catch (e) { assert.ok(/Got a web page titled "?.*|Got a web page/.test(e.message) || /Login/.test(e.message), e.message); }
+    ns.loggedIn = true; ns.files['321'] = orig;
+  });
+
+  await t('learned download link: stored once, tried first, and only same-origin templates are accepted', async () => {
+    await chrome_clearLearned(); // earlier page tests legitimately learned a link
+    await rejects(call('learnTemplate', { template: 'https://evil.example.com/x?id={id}' }), /usable/);
+    await rejects(call('learnTemplate', { template: '{origin}/x"><script>?id={id}' }), /usable/);
+    await call('learnTemplate', { template: '{origin}/custom/dl.nl?id={id}&_xd=T' });
+    await call('learnTemplate', { template: '{origin}/custom/dl.nl?id={id}&_xd=T' });
+    assert.strictEqual(JSON.stringify((await call('getSettings')).learned), JSON.stringify(['{origin}/custom/dl.nl?id={id}&_xd=T']));
+    ns.files['322'] = 'via learned url\n'; ns.hits.length = 0;
+    await call('track', { origin: ORIGIN2, fileId: '322' });
+    assert.ok(ns.hits[0].startsWith('/custom/dl.nl'), 'learned template first: ' + ns.hits[0]);
+    await chrome_clearLearned();
+  });
+  async function chrome_clearLearned() { await W.chrome.storage.local.set({ settings: { ...(await call('getSettings')), learned: null } }); }
+
+  await t('when media.nl is broken, downloadfile.nl (now tried first) still reads the file', async () => {
+    ns.mediaIsBroken = true; ns.files['323'] = 'works\n';
+    const r = await call('track', { origin: ORIGIN2, fileId: '323' });
+    assert.strictEqual(r.script.latestNo, 1);
+    ns.mediaIsBroken = false;
+  });
+
+  await t('Track works from the editor text even if NO file URL can be read', async () => {
+    ns.loggedIn = false; // every download attempt now fails
+    const dom = await openNsPage('/app/common/record/edittextmediaitem.nl?id=5555&e=T', '<div class="CodeMirror" id="cm"></div>', fakeEditor('code in the editor\n'));
+    dom.window.document.title = 'my_script.js (File)';
+    const r = shadow(dom);
+    btnByText(r, 'Track this script').click();
+    await wait(500);
+    const g = await call('get', { key: `${ORIGIN2}|5555` });
+    assert.strictEqual(g.script.name, 'my_script.js');
+    assert.strictEqual((await call('version', { id: g.versions[0].id })).content, 'code in the editor\n');
+    assert.ok(r.querySelector('select option').textContent.startsWith('1 (Current)'));
+    dom.window.close();
+    ns.loggedIn = true;
+  });
+
+  await t('opening the edit page captures a change made elsewhere (editor differs from the last version)', async () => {
+    const dom = await openNsPage('/app/common/record/edittextmediaitem.nl?id=5555&e=T', '<div class="CodeMirror" id="cm"></div>', fakeEditor('code in the editor\n// someone edited this\n'));
+    await wait(1800);
+    const g = await call('get', { key: `${ORIGIN2}|5555` });
+    assert.strictEqual(g.versions.length, 2);
+    assert.strictEqual(g.versions[0].source, 'opened');
+    // opening again with identical text adds nothing
+    const dom2 = await openNsPage('/app/common/record/edittextmediaitem.nl?id=5555&e=T', '<div class="CodeMirror" id="cm"></div>', fakeEditor('code in the editor\n// someone edited this\n'));
+    await wait(1800);
+    assert.strictEqual((await call('get', { key: `${ORIGIN2}|5555` })).versions.length, 2);
+    dom.window.close(); dom2.window.close();
+  });
+
+  await t('script page: the "download" link teaches the extension how this account serves files', async () => {
+    const html = '<a href="/app/common/media/mediaitem.nl?id=4726&e=T">kjts_pr_print_ue.js</a> <a href="/core/media/downloadfile.nl?id=4726&_xd=T&e=T">download</a>';
+    const dom = await openNsPage('/app/common/scripting/script.nl?id=77', html);
+    await wait(300);
+    assert.strictEqual(JSON.stringify((await call('getSettings')).learned), JSON.stringify(['{origin}/core/media/downloadfile.nl?id={id}&_xd=T&e=T']));
+    // a link with a per-file hash must NOT be learned (it would only work for that one file)
+    await chrome_clearLearned();
+    const dom2 = await openNsPage('/app/common/scripting/script.nl?id=77', '<a href="/core/media/media.nl?id=4726&c=123&h=abc123">download</a><a href="/app/common/media/mediaitem.nl?id=4726">f</a>');
+    await wait(300);
+    assert.ok(!(await call('getSettings')).learned);
+    dom.window.close(); dom2.window.close();
   });
 
   console.log(`\n${passed} extension tests passed`);
